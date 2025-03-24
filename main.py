@@ -9,6 +9,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from web3 import Web3
 import requests
 from typing import Dict, List
+from pybit.unified_trading import HTTP
+import asyncio
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -80,18 +82,52 @@ NETWORKS = {
 web3_clients = {name: Web3(Web3.HTTPProvider(url)) for name, url in NETWORKS.items()}
 
 
+# Функция для расчета суммарного баланса
+async def calculate_total_balance(user_id: str):
+    wallets = user_wallets.get(user_id, [])
+    if not wallets:
+        return None
+
+    total_eth = 0.0
+    eth_price = get_eth_to_usdt()
+
+    for wallet in wallets:
+        for web3 in web3_clients.values():
+            if web3.is_connected():
+                try:
+                    balance = get_balance(web3, wallet)
+                    total_eth += balance
+                except Exception as e:
+                    logging.error(f"Error checking balance: {e}")
+
+    return {"total_eth": total_eth, "eth_price": eth_price}
+
+
 # Главное меню
-def get_main_menu():
+async def get_main_menu(user_id: str):
+    total_balance = await calculate_total_balance(user_id)
+
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(text="➕ Добавить кошелек", callback_data="add_wallet"),
         InlineKeyboardButton(text="🗑️ Удалить кошелек", callback_data="remove_wallet")
     )
     builder.row(
-        InlineKeyboardButton(text="📋 Список кошельков", callback_data="list_wallets"),
-        InlineKeyboardButton(text="📊 Суммарный баланс", callback_data="total_balance")
+        InlineKeyboardButton(text="📋 Список кошельков", callback_data="list_wallets")
     )
-    return builder.as_markup()
+
+    menu_text = "💰 <b>Менеджер крипто-кошельков</b>\n\n"
+
+    if total_balance:
+        menu_text += f"💵 <b>Суммарный баланс:</b> {total_balance['total_eth']:.6f} ETH"
+        if total_balance['eth_price']:
+            total_usdt = total_balance['total_eth'] * total_balance['eth_price']
+            menu_text += f" (${total_usdt:.2f})"
+        menu_text += "\n\n"
+
+    menu_text += "Выберите действие:"
+
+    return menu_text, builder.as_markup()
 
 
 # Обработчик команды /start
@@ -102,17 +138,12 @@ async def cmd_start(message: Message):
         user_wallets[user_id] = []
         save_wallets(user_wallets)
 
-    await message.answer(
-        "💰 <b>Менеджер крипто-кошельков</b>\n\n"
-        "Ваши кошельки сохраняются в зашифрованном виде.\n"
-        "Выберите действие:",
-        reply_markup=get_main_menu(),
-        parse_mode="HTML"
-    )
+    menu_text, menu_markup = await get_main_menu(user_id)
+    await message.answer(menu_text, reply_markup=menu_markup, parse_mode="HTML")
 
 
 # Обработчики кнопок
-@dp.callback_query(lambda c: c.data in ["add_wallet", "list_wallets", "total_balance", "remove_wallet"])
+@dp.callback_query(lambda c: c.data in ["add_wallet", "list_wallets", "remove_wallet"])
 async def process_buttons(callback: CallbackQuery):
     user_id = str(callback.from_user.id)
 
@@ -127,8 +158,6 @@ async def process_buttons(callback: CallbackQuery):
         else:
             response = "У вас пока нет добавленных кошельков."
         await callback.message.answer(response, parse_mode="HTML")
-    elif callback.data == "total_balance":
-        await get_total_balance(callback.message, user_id)
     elif callback.data == "remove_wallet":
         await show_remove_menu(callback.message, user_id)
 
@@ -162,6 +191,10 @@ async def process_remove_wallet(callback: CallbackQuery):
         removed_wallet = user_wallets[user_id].pop(index)
         save_wallets(user_wallets)
         await callback.message.answer(f"✅ Кошелек <code>{removed_wallet}</code> удален.", parse_mode="HTML")
+
+        # Обновляем главное меню
+        menu_text, menu_markup = await get_main_menu(user_id)
+        await callback.message.answer(menu_text, reply_markup=menu_markup, parse_mode="HTML")
     except (IndexError, KeyError):
         await callback.message.answer("❌ Ошибка при удалении кошелька.")
 
@@ -202,57 +235,6 @@ async def get_single_balance(message: Message, wallet_address: str):
     await message.answer(response, parse_mode="HTML")
 
 
-# Получение суммарного баланса
-async def get_total_balance(message: Message, user_id: str):
-    wallets = user_wallets.get(user_id, [])
-    if not wallets:
-        await message.answer("У вас нет добавленных кошельков.")
-        return
-
-    eth_price = get_eth_to_usdt()
-    total_balances = {network: 0.0 for network in NETWORKS}
-    total_eth_all_networks = 0.0  # Общая сумма по всем сетям
-
-    await message.answer("🔍 Считаю суммарный баланс... Это может занять время.")
-
-    for wallet in wallets:
-        for name, web3 in web3_clients.items():
-            if web3.is_connected():
-                try:
-                    balance = get_balance(web3, wallet)
-                    total_balances[name] += balance
-                    total_eth_all_networks += balance  # Добавляем к общей сумме
-                except Exception as e:
-                    logging.error(f"Error checking balance for {wallet} in {name}: {e}")
-
-    response = "📊 <b>Суммарный баланс по всем кошелькам:</b>\n\n"
-    has_balance = False
-
-    # Выводим баланс по каждой сети
-    for name, balance in total_balances.items():
-        if balance > 0:
-            has_balance = True
-            if eth_price:
-                usdt_balance = balance * eth_price
-                response += f"▪️ <b>{name}</b>: {balance:.6f} ETH (${usdt_balance:.2f})\n"
-            else:
-                response += f"▪️ <b>{name}</b>: {balance:.6f} ETH\n"
-
-    if not has_balance:
-        response += "На всех кошельках нулевой баланс."
-    else:
-        # Добавляем итоговую сумму
-        response += f"\n💵 <b>Итого:</b> {total_eth_all_networks:.6f} ETH"
-        if eth_price:
-            total_usdt = total_eth_all_networks * eth_price
-            response += f" (${total_usdt:.2f})"
-
-    if eth_price:
-        response += f"\n\n📊 <i>Курс ETH: ${eth_price:.2f}</i>"
-
-    await message.answer(response, parse_mode="HTML")
-
-
 # Обработчик сообщений с адресами кошельков
 @dp.message()
 async def process_message(message: Message):
@@ -276,7 +258,10 @@ async def process_message(message: Message):
 
     # Проверяем баланс для нового кошелька
     await get_single_balance(message, text)
-    await message.answer("Выберите действие:", reply_markup=get_main_menu())
+
+    # Обновляем главное меню
+    menu_text, menu_markup = await get_main_menu(user_id)
+    await message.answer(menu_text, reply_markup=menu_markup, parse_mode="HTML")
 
 
 # Функции для работы с блокчейном
@@ -286,20 +271,32 @@ def get_balance(web3, wallet_address):
     return float(balance_eth)
 
 
+# Функция для получения курса ETH/USDT через Bybit API с pybit
 def get_eth_to_usdt():
+    session = None
     try:
-        url = "https://api.bybit.com/v2/public/tickers"
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        for ticker in data['result']:
-            if ticker['symbol'] == "ETHUSDT":
-                return float(ticker['last_price'])
-        return None
-    except Exception as e:
-        logging.error(f"Ошибка при получении курса: {e}")
-        return None
+        # Инициализация клиента Bybit
+        session = HTTP()
 
+        # Получаем текущую цену ETH/USDT
+        ticker = session.get_tickers(category="spot", symbol="ETHUSDT")
+
+        if ticker['retCode'] == 0 and len(ticker['result']['list']) > 0:
+            return float(ticker['result']['list'][0]['lastPrice'])
+        else:
+            logging.error("Не удалось получить курс ETH/USDT от Bybit")
+            return None
+    except Exception as e:
+        logging.error(f"Ошибка при получении курса через pybit: {e}")
+        return None
+    finally:
+        # Правильное завершение сессии
+        if session:
+            try:
+                # Для pybit нет метода close, используем del для очистки
+                del session
+            except Exception as e:
+                logging.error(f"Ошибка при закрытии сессии: {e}")
 
 # Запуск бота
 async def main():
