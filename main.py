@@ -71,11 +71,14 @@ user_wallets = load_wallets()
 
 # Подключение к узлам сетей
 NETWORKS = {
+    "Ethereum": "https://ethereum-rpc.publicnode.com",
     "Arbitrum": "https://arb1.arbitrum.io/rpc",
     "Base": "https://mainnet.base.org",
-    "Ethereum": "https://ethereum-rpc.publicnode.com",
     "Polygon": "https://polygon-rpc.com",
-    "BNB": "https://bsc-pokt.nodies.app"
+    "BNB": "https://bsc-pokt.nodies.app",
+    "OP": "https://optimism.llamarpc.com",
+    "Abstract":"https://api.mainnet.abs.xyz",
+    #"Monad Testnet":"https://testnet-rpc.monad.xyz"
 }
 
 # Инициализация Web3 для каждой сети
@@ -110,7 +113,8 @@ async def get_main_menu(user_id: str):
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(text="➕ Добавить кошелек", callback_data="add_wallet"),
-        InlineKeyboardButton(text="🗑️ Удалить кошелек", callback_data="remove_wallet")
+        InlineKeyboardButton(text="🗑️ Удалить кошелек", callback_data="remove_wallet"),
+        InlineKeyboardButton(text="ℹ️ Информация", callback_data="show_info")
     )
     builder.row(
         InlineKeyboardButton(text="📋 Список кошельков", callback_data="list_wallets")
@@ -141,6 +145,23 @@ async def cmd_start(message: Message):
     menu_text, menu_markup = await get_main_menu(user_id)
     await message.answer(menu_text, reply_markup=menu_markup, parse_mode="HTML")
 
+# Обработчик кнопки информации
+@dp.callback_query(lambda c: c.data == "show_info")
+async def show_info(callback: CallbackQuery):
+    info_text = (
+        "ℹ️ <b>Подробная информация</b>\n\n"
+        "Этот бот позволяет:\n"
+        "• Отслеживать баланс в различных сетях (количество сетей дорабатывается)\n"
+        "• Хранить неограниченное количество кошельков\n"
+        "• Конвертировать баланс в USDT\n"
+        "• Автоматически обновлять данные\n\n"
+        "Данные хранятся в зашифрованном виде.\n"
+        "Используются только открытые данные. Бот безопасен.\n"
+        "Для добавления и просмотра баланса отдельного кошелька просто отправьте его адрес."
+
+    )
+    await callback.message.answer(info_text, parse_mode="HTML")
+    await callback.answer()
 
 # Обработчики кнопок
 @dp.callback_query(lambda c: c.data in ["add_wallet", "list_wallets", "remove_wallet"])
