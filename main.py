@@ -16,7 +16,7 @@ import asyncio
 logging.basicConfig(level=logging.INFO)
 
 # Инициализация бота
-bot = Bot(token="7765227646:AAH0O5V3tg_Q3NbtBBxdm5F8W9oSjqIxc9o")
+bot = Bot(token="")
 dp = Dispatcher()
 
 # Конфигурация
