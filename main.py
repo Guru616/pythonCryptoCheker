@@ -7,6 +7,7 @@ from aiogram.filters import Command
 from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from web3 import Web3
+from config import BOT_TOKEN
 import requests
 from typing import Dict, List
 from pybit.unified_trading import HTTP
@@ -16,7 +17,7 @@ import asyncio
 logging.basicConfig(level=logging.INFO)
 
 # Инициализация бота
-bot = Bot(token="")
+bot = Bot(token="BOT_TOKEN")
 dp = Dispatcher()
 
 # Конфигурация
