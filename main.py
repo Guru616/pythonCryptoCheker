@@ -7,80 +7,24 @@ from aiogram.filters import Command
 from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from web3 import Web3
-from config import BOT_TOKEN
+from config import BOT_TOKEN, NETWORKS, ADMIN_TG_ID
+from operationData import get_encryption_key,encrypt_data, decrypt_data, load_wallets, save_wallets
 import requests
 from typing import Dict, List
 from pybit.unified_trading import HTTP
+from usersCheker import update_user, load_users
 import asyncio
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
 # Инициализация бота
-bot = Bot(token="BOT_TOKEN")
+bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
-
-# Конфигурация
-WALLETS_FILE = "wallets.enc"
-KEY_FILE = "secret.key"
-
-
-# Генерация или загрузка ключа шифрования
-def get_encryption_key():
-    if os.path.exists(KEY_FILE):
-        with open(KEY_FILE, "rb") as key_file:
-            return key_file.read()
-    else:
-        key = Fernet.generate_key()
-        with open(KEY_FILE, "wb") as key_file:
-            key_file.write(key)
-        return key
-
-
-# Шифрование данных
-def encrypt_data(data: dict) -> bytes:
-    f = Fernet(get_encryption_key())
-    return f.encrypt(json.dumps(data).encode())
-
-
-# Дешифровка данных
-def decrypt_data(encrypted_data: bytes) -> dict:
-    f = Fernet(get_encryption_key())
-    try:
-        return json.loads(f.decrypt(encrypted_data).decode())
-    except:
-        return {}
-
-
-# Загрузка кошельков из файла
-def load_wallets():
-    if os.path.exists(WALLETS_FILE):
-        with open(WALLETS_FILE, "rb") as f:
-            encrypted_data = f.read()
-            return decrypt_data(encrypted_data)
-    return {}
-
-
-# Сохранение кошельков в файл
-def save_wallets(data: dict):
-    with open(WALLETS_FILE, "wb") as f:
-        f.write(encrypt_data(data))
 
 
 # Инициализация хранилища
 user_wallets = load_wallets()
-
-# Подключение к узлам сетей
-NETWORKS = {
-    "Ethereum": "https://ethereum-rpc.publicnode.com",
-    "Arbitrum": "https://arb1.arbitrum.io/rpc",
-    "Base": "https://mainnet.base.org",
-    "Polygon": "https://polygon-rpc.com",
-    "BNB": "https://bsc-pokt.nodies.app",
-    "OP": "https://optimism.llamarpc.com",
-    "Abstract":"https://api.mainnet.abs.xyz",
-    #"Monad Testnet":"https://testnet-rpc.monad.xyz"
-}
 
 # Инициализация Web3 для каждой сети
 web3_clients = {name: Web3(Web3.HTTPProvider(url)) for name, url in NETWORKS.items()}
@@ -135,10 +79,39 @@ async def get_main_menu(user_id: str):
     return menu_text, builder.as_markup()
 
 
+@dp.message(Command("users"))
+async def show_users(message: Message):
+    if str(message.from_user.id) != ADMIN_TG_ID:
+        await message.answer("Доступ запрещён")
+        return
+
+    users = load_users()
+    response = "👥 Пользователи бота:\n\n"
+
+    for user_id, data in users.items():
+        response += (
+            f"ID: {user_id}\n"
+            f"Имя: {data.get('first_name', '')} {data.get('last_name', '')}\n"
+            f"Username: @{data.get('username', '')}\n"
+            f"Первый вход: {data.get('first_seen', '')}\n"
+            f"Последний вход: {data.get('last_seen', '')}\n\n"
+        )
+
+    await message.answer(response)
+
 # Обработчик команды /start
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
-    user_id = str(message.from_user.id)
+    user = message.from_user
+    user_id = str(user.id)
+
+    # Сохраняем информацию о пользователе
+    update_user(
+        user_id=user_id,
+        username=user.username,
+        first_name=user.first_name,
+        last_name=user.last_name
+    )
     if user_id not in user_wallets:
         user_wallets[user_id] = []
         save_wallets(user_wallets)
@@ -275,7 +248,6 @@ async def show_remove_menu(callback: CallbackQuery, user_id: str):
         reply_markup=builder.as_markup()
     )
     await callback.answer()
-
 
 
 # Обработчик удаления кошелька
