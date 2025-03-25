@@ -9,7 +9,7 @@ from web3 import Web3
 
 from config import BOT_TOKEN, NETWORKS, ADMIN_TG_ID
 from operationData import load_wallets, save_wallets
-from usersCheker import update_user, load_users
+from usersCheker import update_user, load_users, get_user_wallets_count
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -82,18 +82,20 @@ async def show_users(message: Message):
         return
 
     users = load_users()
-    response = "👥 Пользователи бота:\n\n"
+    response = "👥 <b>Список пользователей и их кошельков:</b>\n\n"
 
-    for user_id, data in users.items():
+    for user_id, user_data in users.items():
+        wallets_count = get_user_wallets_count(user_id, user_wallets)
         response += (
-            f"ID: {user_id}\n"
-            f"Имя: {data.get('first_name', '')} {data.get('last_name', '')}\n"
-            f"Username: @{data.get('username', '')}\n"
-            f"Первый вход: {data.get('first_seen', '')}\n"
-            f"Последний вход: {data.get('last_seen', '')}\n\n"
+            f"🆔 ID: <code>{user_id}</code>\n"
+            f"👤 Имя: {user_data.get('first_name', '')} {user_data.get('last_name', '')}\n"
+            f"📛 Username: @{user_data.get('username', 'нет')}\n"
+            f"📅 Первый вход: {user_data.get('first_seen', '')}\n"
+            f"🔄 Последний вход: {user_data.get('last_seen', '')}\n"
+            f"💰 Количество кошельков: {wallets_count}\n\n"
         )
 
-    await message.answer(response)
+    await message.answer(response, parse_mode="HTML")
 
 # Обработчик команды /start
 @dp.message(Command("start"))

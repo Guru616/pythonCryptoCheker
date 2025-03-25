@@ -1,13 +1,13 @@
 import json
 from datetime import datetime
+from typing import Dict
+
 
 
 # Файл для хранения данных пользователей
 USERS_FILE = "users.json"
 
-
-# Функция для загрузки данных о пользователях
-def load_users():
+def load_users() -> Dict:
     try:
         with open(USERS_FILE, "r") as f:
             return json.load(f)
@@ -15,13 +15,11 @@ def load_users():
         return {}
 
 
-# Функция для сохранения данных о пользователях
-def save_users(users_data):
+def save_users(users_data: Dict):
     with open(USERS_FILE, "w") as f:
         json.dump(users_data, f, indent=4)
 
 
-# Функция для добавления/обновления пользователя
 def update_user(user_id: str, username: str, first_name: str, last_name: str):
     users = load_users()
 
@@ -40,3 +38,7 @@ def update_user(user_id: str, username: str, first_name: str, last_name: str):
         if last_name: users[user_id]["last_name"] = last_name
 
     save_users(users)
+
+
+def get_user_wallets_count(user_id: str, wallets_data: Dict) -> int:
+    return len(wallets_data.get(user_id, []))
