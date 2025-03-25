@@ -1,3 +1,4 @@
+import datetime
 import logging
 
 from aiogram import Bot, Dispatcher
@@ -8,6 +9,7 @@ from pybit.unified_trading import HTTP
 from web3 import Web3
 
 from config import BOT_TOKEN, NETWORKS, ADMIN_TG_ID
+from feedback import load_feedback, save_feedback
 from operationData import load_wallets, save_wallets
 from usersCheker import update_user, load_users, get_user_wallets_count
 
@@ -151,12 +153,11 @@ async def list_wallets_handler(callback: CallbackQuery):
 async def show_info(callback: CallbackQuery):
     user_id = str(callback.from_user.id)
 
-    # Создаем клавиатуру с кнопкой "Назад"
     builder = InlineKeyboardBuilder()
-    builder.add(InlineKeyboardButton(
-        text="⬅️ Назад",
-        callback_data="back_to_menu"
-    ))
+    builder.row(
+        InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_menu"),
+        InlineKeyboardButton(text="📨 Пожелания", callback_data="send_feedback")
+    )
 
     info_text = (
         "ℹ️ <b>Подробная информация</b>\n\n"
@@ -175,6 +176,17 @@ async def show_info(callback: CallbackQuery):
         info_text,
         reply_markup=builder.as_markup(),
         parse_mode="HTML"
+    )
+    await callback.answer()
+
+# Обработчик кнопки пожеланий
+@dp.callback_query(lambda c: c.data == "send_feedback")
+async def start_feedback(callback: CallbackQuery):
+    await callback.message.edit_text(
+        "📝 Напишите ваше пожелание или сообщение об ошибке:",
+        reply_markup=InlineKeyboardBuilder()
+            .add(InlineKeyboardButton(text="❌ Отмена", callback_data="show_info"))
+            .as_markup()
     )
     await callback.answer()
 
@@ -326,6 +338,7 @@ async def process_message(message: Message):
     # Обновляем главное меню
     menu_text, menu_markup = await get_main_menu(user_id)
     await message.answer(menu_text, reply_markup=menu_markup, parse_mode="HTML")
+
 
 
 # Функции для работы с блокчейном
