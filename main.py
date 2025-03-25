@@ -145,9 +145,47 @@ async def cmd_start(message: Message):
     menu_text, menu_markup = await get_main_menu(user_id)
     await message.answer(menu_text, reply_markup=menu_markup, parse_mode="HTML")
 
+# Функция для создания кнопки "Назад"
+def get_back_button():
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(
+        text="⬅️ Назад",
+        callback_data="back_to_menu"
+    ))
+    return builder.as_markup()
+
+# Обработчик списка кошельков (с кнопкой "Назад")
+@dp.callback_query(lambda c: c.data == "list_wallets")
+async def list_wallets_handler(callback: CallbackQuery):
+    user_id = str(callback.from_user.id)
+    wallets = user_wallets.get(user_id, [])
+
+    if wallets:
+        response = "📋 <b>Ваши кошельки:</b>\n\n" + "\n".join(
+            [f"{i + 1}. <code>{wallet}</code>" for i, wallet in enumerate(wallets)]
+        )
+    else:
+        response = "У вас пока нет добавленных кошельков."
+
+    await callback.message.edit_text(
+        response,
+        reply_markup=get_back_button(),
+        parse_mode="HTML"
+    )
+    await callback.answer()
+
 # Обработчик кнопки информации
 @dp.callback_query(lambda c: c.data == "show_info")
 async def show_info(callback: CallbackQuery):
+    user_id = str(callback.from_user.id)
+
+    # Создаем клавиатуру с кнопкой "Назад"
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(
+        text="⬅️ Назад",
+        callback_data="back_to_menu"
+    ))
+
     info_text = (
         "ℹ️ <b>Подробная информация</b>\n\n"
         "Этот бот позволяет:\n"
@@ -158,9 +196,31 @@ async def show_info(callback: CallbackQuery):
         "Данные хранятся в зашифрованном виде.\n"
         "Используются только открытые данные. Бот безопасен.\n"
         "Для добавления и просмотра баланса отдельного кошелька просто отправьте его адрес."
-
     )
-    await callback.message.answer(info_text, parse_mode="HTML")
+
+    # Редактируем текущее сообщение вместо создания нового
+    await callback.message.edit_text(
+        info_text,
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML"
+    )
+    await callback.answer()
+
+
+# Обработчик кнопки "Назад"
+@dp.callback_query(lambda c: c.data == "back_to_menu")
+async def back_to_menu_handler(callback: CallbackQuery):
+    user_id = str(callback.from_user.id)
+    await callback.message.edit_text(
+        text="Загружаю главное меню...",
+        reply_markup=None
+    )
+    menu_text, menu_markup = await get_main_menu(user_id)
+    await callback.message.edit_text(
+        text=menu_text,
+        reply_markup=menu_markup,
+        parse_mode="HTML"
+    )
     await callback.answer()
 
 # Обработчики кнопок
@@ -180,16 +240,21 @@ async def process_buttons(callback: CallbackQuery):
             response = "У вас пока нет добавленных кошельков."
         await callback.message.answer(response, parse_mode="HTML")
     elif callback.data == "remove_wallet":
-        await show_remove_menu(callback.message, user_id)
+        await show_remove_menu(callback, user_id)
 
     await callback.answer()
 
+# Обновленный обработчик кнопки "Удалить кошелек"
+@dp.callback_query(lambda c: c.data == "remove_wallet")
+async def process_remove_button(callback: CallbackQuery):
+    user_id = str(callback.from_user.id)
+    await show_remove_menu(callback, user_id)
 
 # Меню удаления кошельков
-async def show_remove_menu(message: Message, user_id: str):
+async def show_remove_menu(callback: CallbackQuery, user_id: str):
     wallets = user_wallets.get(user_id, [])
     if not wallets:
-        await message.answer("У вас нет кошельков для удаления.")
+        await callback.answer("У вас нет кошельков для удаления.")
         return
 
     builder = InlineKeyboardBuilder()
@@ -198,8 +263,18 @@ async def show_remove_menu(message: Message, user_id: str):
             text=f"Удалить {i}. {wallet[:6]}...{wallet[-4:]}",
             callback_data=f"remove_{i - 1}"
         ))
+    builder.row(InlineKeyboardButton(
+        text="⬅️ Назад",
+        callback_data="back_to_menu"
+    ))
     builder.adjust(1)
-    await message.answer("Выберите кошелек для удаления:", reply_markup=builder.as_markup())
+
+    await callback.message.edit_text(
+        text="Выберите кошелек для удаления:",
+        reply_markup=builder.as_markup()
+    )
+    await callback.answer()
+
 
 
 # Обработчик удаления кошелька
