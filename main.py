@@ -68,9 +68,9 @@ async def get_main_menu(user_id: str):
         if total_balance['eth_price']:
             total_usdt = total_balance['total_eth'] * total_balance['eth_price']
             menu_text += f" (${total_usdt:.2f})"
-        menu_text += "\n\n"
+        menu_text += f"\n\n<i>Курс ETH: ${get_eth_to_usdt():.2f}\nКурс BTC: ${get_btc_to_usdt():.2f}</i>"
 
-    menu_text += "Выберите действие:"
+    menu_text += "\n\nВыберите действие:"
 
     return menu_text, builder.as_markup()
 
@@ -296,9 +296,6 @@ async def get_single_balance(message: Message, wallet_address: str):
     else:
         response += "На этом кошельке не найдено средств."
 
-    if eth_price:
-        response += f"\n\n📊 <i>Курс ETH: ${eth_price:.2f}</i>"
-
     await message.answer(response, parse_mode="HTML")
 
 
@@ -365,6 +362,31 @@ def get_eth_to_usdt():
             except Exception as e:
                 logging.error(f"Ошибка при закрытии сессии: {e}")
 
+# Функция для получения курса BTC/USDT через Bybit API
+def get_btc_to_usdt():
+    session = None
+    try:
+        # Инициализация клиента Bybit
+        session = HTTP()
+
+        # Получаем текущую цену BTC/USDT
+        ticker = session.get_tickers(category="spot", symbol="BTCUSDT")
+
+        if ticker['retCode'] == 0 and len(ticker['result']['list']) > 0:
+            return float(ticker['result']['list'][0]['lastPrice'])
+        else:
+            logging.error("Не удалось получить курс BTC/USDT от Bybit")
+            return None
+    except Exception as e:
+        logging.error(f"Ошибка при получении курса BTC через pybit: {e}")
+        return None
+    finally:
+        # Правильное завершение сессии
+        if session:
+            try:
+                del session
+            except Exception as e:
+                logging.error(f"Ошибка при закрытии сессии: {e}")
 # Запуск бота
 async def main():
     # Проверка подключения к сетям
