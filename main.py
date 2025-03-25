@@ -1,19 +1,15 @@
 import logging
-import json
-from cryptography.fernet import Fernet
-import os
-from aiogram import Bot, Dispatcher, types
+
+from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
-from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
+from aiogram.types import Message, InlineKeyboardButton, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from web3 import Web3
-from config import BOT_TOKEN, NETWORKS, ADMIN_TG_ID
-from operationData import get_encryption_key,encrypt_data, decrypt_data, load_wallets, save_wallets
-import requests
-from typing import Dict, List
 from pybit.unified_trading import HTTP
+from web3 import Web3
+
+from config import BOT_TOKEN, NETWORKS, ADMIN_TG_ID
+from operationData import load_wallets, save_wallets
 from usersCheker import update_user, load_users
-import asyncio
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
