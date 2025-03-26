@@ -105,6 +105,9 @@ async def cmd_start(message: Message):
     user = message.from_user
     user_id = str(user.id)
 
+    # Отправляем сообщение о загрузке
+    loading_msg = await message.answer("🔄 Загружаю главное меню...")
+
     # Сохраняем информацию о пользователе
     update_user(
         user_id=user_id,
@@ -117,7 +120,9 @@ async def cmd_start(message: Message):
         save_wallets(user_wallets)
 
     menu_text, menu_markup = await get_main_menu(user_id)
-    await message.answer(menu_text, reply_markup=menu_markup, parse_mode="HTML")
+
+    # Редактируем сообщение о загрузке вместо отправки нового
+    await loading_msg.edit_text(menu_text, reply_markup=menu_markup, parse_mode="HTML")
 
 # Функция для создания кнопки "Назад"
 def get_back_button():
@@ -184,7 +189,7 @@ async def show_info(callback: CallbackQuery):
 async def back_to_menu_handler(callback: CallbackQuery):
     user_id = str(callback.from_user.id)
     await callback.message.edit_text(
-        text="Загружаю главное меню...",
+        text="🔄 Загружаю главное меню...",
         reply_markup=None
     )
     menu_text, menu_markup = await get_main_menu(user_id)
