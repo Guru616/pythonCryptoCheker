@@ -200,6 +200,55 @@ async def back_to_menu_handler(callback: CallbackQuery):
     )
     await callback.answer()
 
+
+@dp.message(Command("diagnose"))
+async def diagnose_networks(message: Message):
+    # Проверяем, что это админ
+    if str(message.from_user.id) != ADMIN_TG_ID:
+        await message.answer("❌ Доступ запрещён")
+        return
+
+    # Создаем сообщение с прогрессом
+    status_msg = await message.answer("🔄 Проверяю подключение к сетям...")
+
+    results = []
+    total_time = 0
+
+    # Проверяем каждую сеть
+    for name, web3 in web3_clients.items():
+        try:
+            start_time = datetime.datetime.now()
+
+            # Проверяем подключение
+            is_connected = web3.is_connected()
+
+            # Проверяем последний блок
+            latest_block = web3.eth.block_number if is_connected else None
+
+            end_time = datetime.datetime.now()
+            response_time = (end_time - start_time).total_seconds() * 1000  # в мс
+            total_time += response_time
+
+            status = "✅ Работает" if is_connected else "❌ Не отвечает"
+            results.append(
+                f"▪ <b>{name}</b>: {status}\n"
+                f"   Последний блок: {latest_block or 'N/A'}\n"
+                f"   Время ответа: {response_time:.2f} мс\n"
+            )
+
+        except Exception as e:
+            results.append(f"▪ <b>{name}</b>: ❌ Ошибка проверки ({str(e)})\n")
+            continue
+
+    # Формируем итоговый отчет
+    report = (
+            "📊 <b>Диагностика сетей</b>\n\n"
+            + "\n".join(results)
+            + f"\n⏱ <b>Общее время проверки:</b> {total_time:.2f} мс"
+    )
+
+    # Обновляем первоначальное сообщение с результатами
+    await status_msg.edit_text(report, parse_mode="HTML")
 # Обработчики кнопок
 @dp.callback_query(lambda c: c.data in ["add_wallet", "list_wallets", "remove_wallet"])
 async def process_buttons(callback: CallbackQuery):
