@@ -156,7 +156,6 @@ async def show_info(callback: CallbackQuery):
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_menu"),
-        InlineKeyboardButton(text="📨 Пожелания", callback_data="send_feedback")
     )
 
     info_text = (
@@ -176,17 +175,6 @@ async def show_info(callback: CallbackQuery):
         info_text,
         reply_markup=builder.as_markup(),
         parse_mode="HTML"
-    )
-    await callback.answer()
-
-# Обработчик кнопки пожеланий
-@dp.callback_query(lambda c: c.data == "send_feedback")
-async def start_feedback(callback: CallbackQuery):
-    await callback.message.edit_text(
-        "📝 Напишите ваше пожелание или сообщение об ошибке:",
-        reply_markup=InlineKeyboardBuilder()
-            .add(InlineKeyboardButton(text="❌ Отмена", callback_data="show_info"))
-            .as_markup()
     )
     await callback.answer()
 
