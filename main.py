@@ -13,6 +13,7 @@ from config import BOT_TOKEN, NETWORKS, ADMIN_TG_ID
 from cryptoOperation import get_eth_to_usdt, get_balance, get_btc_to_usdt
 from operationData import load_wallets, save_wallets
 from usersCheker import update_user, load_users, get_user_wallets_count
+from feedback import load_feedback, add_feedback
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -72,6 +73,7 @@ async def get_main_menu(user_id: str):
         menu_text += f"\n\n<i>Курс ETH: ${get_eth_to_usdt():.2f}\nКурс BTC: ${get_btc_to_usdt():.2f}</i>"
 
     menu_text += "\n\nВыберите действие:"
+    menu_text += "\n\n💡 <i>Вы можете отправить ошибку/отзыв/пожелания, ответив на это сообщение</i>"
 
     return menu_text, builder.as_markup()
 @dp.message(Command("users"))
@@ -95,7 +97,110 @@ async def show_users(message: Message):
         )
 
     await message.answer(response, parse_mode="HTML")
+@dp.message(Command("feedback"))
+async def show_feedback(message: Message):
+    if str(message.from_user.id) != ADMIN_TG_ID:
+        await message.answer("❌ Доступ запрещён")
+        return
 
+    feedback_data = load_feedback()
+
+    if not feedback_data:
+        await message.answer("📭 Пожеланий от пользователей пока нет.")
+        return
+
+    response = "📝 <b>Пожелания от пользователей:</b>\n\n"
+
+    for user_id, user_data in feedback_data.items():
+        response += (
+            f"👤 <b>Пользователь:</b> {user_data.get('first_name', '')} {user_data.get('last_name', '')}\n"
+            f"🆔 ID: <code>{user_id}</code>\n"
+            f"📛 @{user_data.get('username', 'нет')}\n"
+            f"📩 <b>Пожелания:</b> ({len(user_data['feedback'])})\n"
+        )
+
+        for i, feedback in enumerate(user_data['feedback'], 1):
+            response += (
+                f"  {i}. [{feedback['timestamp']}]\n"
+                f"  {feedback['message']}\n\n"
+            )
+
+        response += "\n"
+
+    # Разбиваем на части, если сообщение слишком длинное
+    if len(response) > 4000:
+        parts = [response[i:i + 4000] for i in range(0, len(response), 4000)]
+        for part in parts:
+            await message.answer(part, parse_mode="HTML")
+    else:
+        await message.answer(response, parse_mode="HTML")
+@dp.message(Command("diagnose"))
+async def diagnose_networks(message: Message):
+    # Проверяем, что это админ
+    if str(message.from_user.id) != ADMIN_TG_ID:
+        await message.answer("❌ Доступ запрещён")
+        return
+
+    # Создаем сообщение с прогрессом
+    status_msg = await message.answer("🔄 Проверяю подключение к сетям...")
+
+    results = []
+    total_time = 0
+
+    # Проверяем каждую сеть
+    for name, web3 in web3_clients.items():
+        try:
+            start_time = datetime.datetime.now()
+
+            # Проверяем подключение
+            is_connected = web3.is_connected()
+
+            # Проверяем последний блок
+            latest_block = web3.eth.block_number if is_connected else None
+
+            end_time = datetime.datetime.now()
+            response_time = (end_time - start_time).total_seconds() * 1000  # в мс
+            total_time += response_time
+
+            status = "✅ Работает" if is_connected else "❌ Не отвечает"
+            results.append(
+                f"▪ <b>{name}</b>: {status}\n"
+                f"   Последний блок: {latest_block or 'N/A'}\n"
+                f"   Время ответа: {response_time:.2f} мс\n"
+            )
+
+        except Exception as e:
+            results.append(f"▪ <b>{name}</b>: ❌ Ошибка проверки ({str(e)})\n")
+            continue
+
+    # Формируем итоговый отчет
+    report = (
+            "📊 <b>Диагностика сетей</b>\n\n"
+            + "\n".join(results)
+            + f"\n⏱ <b>Общее время проверки:</b> {total_time:.2f} мс"
+    )
+
+    # Обновляем первоначальное сообщение с результатами
+    await status_msg.edit_text(report, parse_mode="HTML")
+@dp.message(Command("help"))
+async def show_help(message: Message):
+    user_id = str(message.from_user.id)
+
+    # Общие команды для всех пользователей
+    help_text = "📋 <b>Список команд:</b>\n\n" \
+                "/start - Начать работу с ботом\n" \
+                "Отправьте адрес кошелька - добавить его в отслеживание\n" \
+                "Ответьте на главное меню - отправить ошибку/отзыв/пожелания\n\n"
+
+    # Команды только для администратора
+    if user_id == ADMIN_TG_ID:
+        help_text += "👑 <b>Команды администратора:</b>\n" \
+                     "/users - Просмотр списка пользователей\n" \
+                     "/feedback - Просмотр пожеланий пользователей\n" \
+                     "/diagnose - Диагностика подключения к сетям\n" \
+                     "/help - Список всех команд"
+
+    await message.answer(help_text, parse_mode="HTML")
 # Обработчик команды /start
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
@@ -180,7 +285,6 @@ async def show_info(callback: CallbackQuery):
     )
     await callback.answer()
 
-
 # Обработчик кнопки "Назад"
 @dp.callback_query(lambda c: c.data == "back_to_menu")
 async def back_to_menu_handler(callback: CallbackQuery):
@@ -197,55 +301,6 @@ async def back_to_menu_handler(callback: CallbackQuery):
     )
     await callback.answer()
 
-
-@dp.message(Command("diagnose"))
-async def diagnose_networks(message: Message):
-    # Проверяем, что это админ
-    if str(message.from_user.id) != ADMIN_TG_ID:
-        await message.answer("❌ Доступ запрещён")
-        return
-
-    # Создаем сообщение с прогрессом
-    status_msg = await message.answer("🔄 Проверяю подключение к сетям...")
-
-    results = []
-    total_time = 0
-
-    # Проверяем каждую сеть
-    for name, web3 in web3_clients.items():
-        try:
-            start_time = datetime.datetime.now()
-
-            # Проверяем подключение
-            is_connected = web3.is_connected()
-
-            # Проверяем последний блок
-            latest_block = web3.eth.block_number if is_connected else None
-
-            end_time = datetime.datetime.now()
-            response_time = (end_time - start_time).total_seconds() * 1000  # в мс
-            total_time += response_time
-
-            status = "✅ Работает" if is_connected else "❌ Не отвечает"
-            results.append(
-                f"▪ <b>{name}</b>: {status}\n"
-                f"   Последний блок: {latest_block or 'N/A'}\n"
-                f"   Время ответа: {response_time:.2f} мс\n"
-            )
-
-        except Exception as e:
-            results.append(f"▪ <b>{name}</b>: ❌ Ошибка проверки ({str(e)})\n")
-            continue
-
-    # Формируем итоговый отчет
-    report = (
-            "📊 <b>Диагностика сетей</b>\n\n"
-            + "\n".join(results)
-            + f"\n⏱ <b>Общее время проверки:</b> {total_time:.2f} мс"
-    )
-
-    # Обновляем первоначальное сообщение с результатами
-    await status_msg.edit_text(report, parse_mode="HTML")
 # Обработчики кнопок
 @dp.callback_query(lambda c: c.data in ["add_wallet", "list_wallets", "remove_wallet"])
 async def process_buttons(callback: CallbackQuery):
@@ -298,7 +353,6 @@ async def show_remove_menu(callback: CallbackQuery, user_id: str):
     )
     await callback.answer()
 
-
 # Обработчик удаления кошелька
 @dp.callback_query(lambda c: c.data.startswith("remove_"))
 async def process_remove_wallet(callback: CallbackQuery):
@@ -317,7 +371,6 @@ async def process_remove_wallet(callback: CallbackQuery):
         await callback.message.answer("❌ Ошибка при удалении кошелька.")
 
     await callback.answer()
-
 
 # Получение баланса для одного кошелька
 async def get_single_balance(message: Message, wallet_address: str):
@@ -349,13 +402,35 @@ async def get_single_balance(message: Message, wallet_address: str):
 
     await message.answer(response, parse_mode="HTML")
 
-
 # Обработчик сообщений с адресами кошельков
 @dp.message()
 async def process_message(message: Message):
     user_id = str(message.from_user.id)
     text = message.text.strip()
+    # Проверяем, является ли сообщение ответом на главное меню
+    if message.reply_to_message and "Менеджер крипто-кошельков" in message.reply_to_message.text:
+        # Сохраняем пожелание
+        add_feedback(
+            user_id=user_id,
+            username=message.from_user.username,
+            first_name=message.from_user.first_name,
+            last_name=message.from_user.last_name,
+            message=text
+        )
 
+        # Отправляем временное сообщение
+        temp_msg = await message.answer("✅ Спасибо за ваше пожелание! Мы обязательно его рассмотрим.")
+
+        # Через 30 секунд меняем его
+        await asyncio.sleep(30)
+        try:
+            await temp_msg.edit_text("Для начала работы напишите /start")
+        except TelegramBadRequest:
+            # Если сообщение уже было изменено или удалено
+            pass
+        return
+
+    # Остальная логика обработки сообщений (кошельки и т.д.)
     if not Web3.is_address(text):
         # Отправляем первоначальное сообщение
         error_msg = await message.answer("❌ Это не похоже на адрес кошелька. Попробуйте еще раз")
