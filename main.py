@@ -2,6 +2,7 @@ import datetime
 import logging
 
 from aiogram import Bot, Dispatcher
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.types import Message, InlineKeyboardButton, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -360,7 +361,16 @@ async def process_message(message: Message):
     text = message.text.strip()
 
     if not Web3.is_address(text):
-        await message.answer("❌ Это не похоже на адрес кошелька. Попробуйте еще раз.")
+        # Отправляем первоначальное сообщение
+        error_msg = await message.answer("❌ Это не похоже на адрес кошелька. Попробуйте еще раз")
+
+        # Через 30 секунд меняем его
+        await asyncio.sleep(30)
+        try:
+            await error_msg.edit_text("Для начала работы напишите /start")
+        except TelegramBadRequest:
+            # Если сообщение уже было изменено или удалено
+            pass
         return
 
     if user_id not in user_wallets:
@@ -380,7 +390,6 @@ async def process_message(message: Message):
     # Обновляем главное меню
     menu_text, menu_markup = await get_main_menu(user_id)
     await message.answer(menu_text, reply_markup=menu_markup, parse_mode="HTML")
-
 
 
 # Функции для работы с блокчейном
