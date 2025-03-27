@@ -10,7 +10,7 @@ from pybit.unified_trading import HTTP
 from web3 import Web3
 
 from config import BOT_TOKEN, NETWORKS, ADMIN_TG_ID
-from feedback import load_feedback, save_feedback
+from cryptoOperation import get_eth_to_usdt, get_balance, get_btc_to_usdt
 from operationData import load_wallets, save_wallets
 from usersCheker import update_user, load_users, get_user_wallets_count
 
@@ -48,8 +48,6 @@ async def calculate_total_balance(user_id: str):
                     logging.error(f"Error checking balance: {e}")
 
     return {"total_eth": total_eth, "eth_price": eth_price}
-
-
 # Главное меню
 async def get_main_menu(user_id: str):
     total_balance = await calculate_total_balance(user_id)
@@ -76,8 +74,6 @@ async def get_main_menu(user_id: str):
     menu_text += "\n\nВыберите действие:"
 
     return menu_text, builder.as_markup()
-
-
 @dp.message(Command("users"))
 async def show_users(message: Message):
     if str(message.from_user.id) != ADMIN_TG_ID:
@@ -391,66 +387,6 @@ async def process_message(message: Message):
     menu_text, menu_markup = await get_main_menu(user_id)
     await message.answer(menu_text, reply_markup=menu_markup, parse_mode="HTML")
 
-
-# Функции для работы с блокчейном
-def get_balance(web3, wallet_address):
-    balance_wei = web3.eth.get_balance(wallet_address)
-    balance_eth = web3.from_wei(balance_wei, "ether")
-    return float(balance_eth)
-
-
-# Функция для получения курса ETH/USDT через Bybit API с pybit
-def get_eth_to_usdt():
-    session = None
-    try:
-        # Инициализация клиента Bybit
-        session = HTTP()
-
-        # Получаем текущую цену ETH/USDT
-        ticker = session.get_tickers(category="spot", symbol="ETHUSDT")
-
-        if ticker['retCode'] == 0 and len(ticker['result']['list']) > 0:
-            return float(ticker['result']['list'][0]['lastPrice'])
-        else:
-            logging.error("Не удалось получить курс ETH/USDT от Bybit")
-            return None
-    except Exception as e:
-        logging.error(f"Ошибка при получении курса через pybit: {e}")
-        return None
-    finally:
-        # Правильное завершение сессии
-        if session:
-            try:
-                # Для pybit нет метода close, используем del для очистки
-                del session
-            except Exception as e:
-                logging.error(f"Ошибка при закрытии сессии: {e}")
-
-# Функция для получения курса BTC/USDT через Bybit API
-def get_btc_to_usdt():
-    session = None
-    try:
-        # Инициализация клиента Bybit
-        session = HTTP()
-
-        # Получаем текущую цену BTC/USDT
-        ticker = session.get_tickers(category="spot", symbol="BTCUSDT")
-
-        if ticker['retCode'] == 0 and len(ticker['result']['list']) > 0:
-            return float(ticker['result']['list'][0]['lastPrice'])
-        else:
-            logging.error("Не удалось получить курс BTC/USDT от Bybit")
-            return None
-    except Exception as e:
-        logging.error(f"Ошибка при получении курса BTC через pybit: {e}")
-        return None
-    finally:
-        # Правильное завершение сессии
-        if session:
-            try:
-                del session
-            except Exception as e:
-                logging.error(f"Ошибка при закрытии сессии: {e}")
 # Запуск бота
 async def main():
     # Проверка подключения к сетям
