@@ -14,6 +14,7 @@ from cryptoOperation import get_eth_to_usdt, get_balance, get_btc_to_usdt
 from operationData import load_wallets, save_wallets
 from usersCheker import update_user, load_users, get_user_wallets_count
 from feedback import load_feedback, add_feedback
+from broadcast import broadcast_message
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -66,16 +67,45 @@ async def get_main_menu(user_id: str):
     menu_text = "💰 <b>Менеджер крипто-кошельков</b>\n\n"
 
     if total_balance:
-        menu_text += f"💵 <b>Суммарный баланс:</b> {total_balance['total_eth']:.6f} ETH"
-        if total_balance['eth_price']:
-            total_usdt = total_balance['total_eth'] * total_balance['eth_price']
-            menu_text += f" (${total_usdt:.2f})"
-        menu_text += f"\n\n<i>Курс ETH: ${get_eth_to_usdt():.2f}\nКурс BTC: ${get_btc_to_usdt():.2f}</i>"
+        eth_price = total_balance['eth_price']
+        total_eth = total_balance['total_eth']
+        total_usdt = total_eth * eth_price if eth_price else 0
+
+        # Форматируем числа с разделителями тысяч
+        formatted_usdt = f"{total_usdt:,.2f}".replace(",", " ").replace(".", ",")
+        formatted_eth = f"{total_eth:,.6f}".replace(",", " ").replace(".", ",")
+
+        menu_text += f"💵 <b>Суммарный баланс:</b> ${formatted_usdt} USDT\n\n"# ({formatted_eth} ETH)\n\n"
+
+        # Форматируем курсы
+        eth_price_formatted = f"{get_eth_to_usdt():,.2f}".replace(",", " ").replace(".", ",")
+        btc_price_formatted = f"{get_btc_to_usdt():,.2f}".replace(",", " ").replace(".", ",")
+
+        menu_text += f"<i>Курс ETH: ${eth_price_formatted}\n"
+        menu_text += f"Курс BTC: ${btc_price_formatted}</i>"
 
     menu_text += "\n\nВыберите действие:"
-    menu_text += "\n\n💡 <i>Вы можете отправить ошибку/отзыв/пожелания, ответив на это сообщение</i>"
+    menu_text += "\n\n💡 <i>Вы можете отправить отзыв/ошибку, ответом на это сообщение</i>"
 
     return menu_text, builder.as_markup()
+
+@dp.message(Command("broadcast"))
+async def broadcast_command(message: Message):
+    """Обработчик команды /broadcast"""
+    if str(message.from_user.id) != ADMIN_TG_ID:
+        await message.answer("❌ Доступ запрещён")
+        return
+
+    # Проверяем, есть ли reply
+    if not message.reply_to_message:
+        await message.answer(
+            "ℹ️ Для рассылки сообщения ответьте (reply) на него командой /broadcast\n"
+            "Поддерживаются текстовые сообщения, фото и документы"
+        )
+        return
+
+    # Запускаем рассылку
+    await broadcast_message(bot, message.reply_to_message)
 @dp.message(Command("users"))
 async def show_users(message: Message):
     if str(message.from_user.id) != ADMIN_TG_ID:
@@ -198,6 +228,7 @@ async def show_help(message: Message):
                      "/users - Просмотр списка пользователей\n" \
                      "/feedback - Просмотр пожеланий пользователей\n" \
                      "/diagnose - Диагностика подключения к сетям\n" \
+                     "/broadcast - Рассылка сообщения всем пользователям (reply)\n" \
                      "/help - Список всех команд"
 
     await message.answer(help_text, parse_mode="HTML")

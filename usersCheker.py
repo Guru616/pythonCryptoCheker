@@ -42,3 +42,8 @@ def update_user(user_id: str, username: str, first_name: str, last_name: str):
 
 def get_user_wallets_count(user_id: str, wallets_data: Dict) -> int:
     return len(wallets_data.get(user_id, []))
+
+def get_all_users():
+    """Получает список всех пользователей"""
+    users = load_users()
+    return list(users.keys())
