@@ -57,4 +57,3 @@ def get_btc_to_usdt():
                 del session
             except Exception as e:
                 logging.error(f"Ошибка при закрытии сессии: {e}")
-
