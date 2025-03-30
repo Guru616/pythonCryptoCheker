@@ -5,7 +5,7 @@ from typing import Dict
 
 
 # Файл для хранения данных пользователей
-USERS_FILE = "users.json"
+USERS_FILE = "Users/users.json"
 
 def load_users() -> Dict:
     try:

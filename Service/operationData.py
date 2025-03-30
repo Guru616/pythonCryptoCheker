@@ -5,8 +5,8 @@ import os
 
 
 # Конфигурация
-WALLETS_FILE = "wallets.enc"
-KEY_FILE = "secret.key"
+WALLETS_FILE = "Service/wallets.enc"
+KEY_FILE = "Service/secret.key"
 
 
 # Генерация или загрузка ключа шифрования

@@ -1,6 +1,6 @@
 import asyncio
 from aiogram.exceptions import TelegramBadRequest
-from usersCheker import get_all_users
+from Users.usersCheker import get_all_users
 from config import ADMIN_TG_ID
 
 class BroadcastStatus:

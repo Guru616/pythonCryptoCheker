@@ -9,7 +9,7 @@ NETWORKS = {
     "Base": "https://mainnet.base.org",
     "Polygon": "https://polygon-rpc.com",
     "BNB": "https://bsc-pokt.nodies.app",
-    "OP": "https://optimism.llamarpc.com",
+    "OP": "https://optimism-rpc.publicnode.com",
     "Abstract":"https://api.mainnet.abs.xyz",
     #"Monad Testnet":"https://testnet-rpc.monad.xyz"
 }

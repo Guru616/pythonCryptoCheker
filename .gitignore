@@ -1,5 +1,6 @@
-!/secret.key
+!/Service/secret.key
 
-!/wallets.enc
-!/users.json
+!/Service/wallets.enc
+!/Users/users.json
 !/config.py
+!/Users/user_feedback.json

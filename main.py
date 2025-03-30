@@ -6,15 +6,14 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.types import Message, InlineKeyboardButton, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from pybit.unified_trading import HTTP
 from web3 import Web3
 
 from config import BOT_TOKEN, NETWORKS, ADMIN_TG_ID
-from cryptoOperation import get_eth_to_usdt, get_balance, get_btc_to_usdt
-from operationData import load_wallets, save_wallets
-from usersCheker import update_user, load_users, get_user_wallets_count
-from feedback import load_feedback, add_feedback
-from broadcast import broadcast_message
+from Service.cryptoOperation import get_eth_to_usdt, get_balance, get_btc_to_usdt
+from Service.operationData import load_wallets, save_wallets
+from Users.usersCheker import update_user, load_users, get_user_wallets_count
+from Users.feedback import load_feedback, add_feedback
+from Users.broadcast import broadcast_message
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
