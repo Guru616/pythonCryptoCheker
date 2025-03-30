@@ -30,7 +30,6 @@ user_wallets = load_wallets()
 web3_clients = {name: Web3(Web3.HTTPProvider(url)) for name, url in NETWORKS.items()}
 
 
-# Функция для расчета суммарного баланса
 async def calculate_total_balance(user_id: str):
     wallets = user_wallets.get(user_id, [])
     if not wallets:
@@ -87,7 +86,36 @@ async def get_main_menu(user_id: str):
     menu_text += "\n\n💡 <i>Вы можете отправить отзыв/ошибку, ответом на это сообщение</i>"
 
     return menu_text, builder.as_markup()
+async def get_single_balance(message: Message, wallet_address: str):
+    if not Web3.is_address(wallet_address):
+        await message.answer("❌ Неправильный формат адреса кошелька.")
+        return
 
+    eth_price = get_eth_to_usdt()
+    results = []
+
+    for name, web3 in web3_clients.items():
+        if web3.is_connected():
+            try:
+                balance = get_balance(web3, wallet_address)
+                if balance > 0:
+                    if eth_price:
+                        usdt_balance = balance * eth_price
+                        results.append(f"▪️ <b>{name}</b>: {balance:.6f} ETH (${usdt_balance:.2f})")
+                    else:
+                        results.append(f"▪️ <b>{name}</b>: {balance:.6f} ETH")
+            except Exception as e:
+                logging.error(f"Error checking balance in {name}: {e}")
+
+    response = f"💰 <b>Баланс кошелька</b> <code>{wallet_address}</code>:\n\n"
+    if results:
+        response += "\n".join(results)
+    else:
+        response += "На этом кошельке не найдено средств."
+
+    await message.answer(response, parse_mode="HTML")
+
+#Админ команты
 @dp.message(Command("broadcast"))
 async def broadcast_command(message: Message):
     """Обработчик команды /broadcast"""
@@ -256,7 +284,7 @@ async def cmd_start(message: Message):
     # Редактируем сообщение о загрузке вместо отправки нового
     await loading_msg.edit_text(menu_text, reply_markup=menu_markup, parse_mode="HTML")
 
-# Функция для создания кнопки "Назад"
+
 def get_back_button():
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(
@@ -264,8 +292,6 @@ def get_back_button():
         callback_data="back_to_menu"
     ))
     return builder.as_markup()
-
-# Обработчик списка кошельков (с кнопкой "Назад")
 @dp.callback_query(lambda c: c.data == "list_wallets")
 async def list_wallets_handler(callback: CallbackQuery):
     user_id = str(callback.from_user.id)
@@ -284,8 +310,6 @@ async def list_wallets_handler(callback: CallbackQuery):
         parse_mode="HTML"
     )
     await callback.answer()
-
-# Обработчик кнопки информации
 @dp.callback_query(lambda c: c.data == "show_info")
 async def show_info(callback: CallbackQuery):
     user_id = str(callback.from_user.id)
@@ -314,8 +338,6 @@ async def show_info(callback: CallbackQuery):
         parse_mode="HTML"
     )
     await callback.answer()
-
-# Обработчик кнопки "Назад"
 @dp.callback_query(lambda c: c.data == "back_to_menu")
 async def back_to_menu_handler(callback: CallbackQuery):
     user_id = str(callback.from_user.id)
@@ -330,8 +352,6 @@ async def back_to_menu_handler(callback: CallbackQuery):
         parse_mode="HTML"
     )
     await callback.answer()
-
-# Обработчики кнопок
 @dp.callback_query(lambda c: c.data in ["add_wallet", "list_wallets", "remove_wallet"])
 async def process_buttons(callback: CallbackQuery):
     user_id = str(callback.from_user.id)
@@ -351,14 +371,10 @@ async def process_buttons(callback: CallbackQuery):
         await show_remove_menu(callback, user_id)
 
     await callback.answer()
-
-# Обновленный обработчик кнопки "Удалить кошелек"
 @dp.callback_query(lambda c: c.data == "remove_wallet")
 async def process_remove_button(callback: CallbackQuery):
     user_id = str(callback.from_user.id)
     await show_remove_menu(callback, user_id)
-
-# Меню удаления кошельков
 async def show_remove_menu(callback: CallbackQuery, user_id: str):
     wallets = user_wallets.get(user_id, [])
     if not wallets:
@@ -382,8 +398,6 @@ async def show_remove_menu(callback: CallbackQuery, user_id: str):
         reply_markup=builder.as_markup()
     )
     await callback.answer()
-
-# Обработчик удаления кошелька
 @dp.callback_query(lambda c: c.data.startswith("remove_"))
 async def process_remove_wallet(callback: CallbackQuery):
     user_id = str(callback.from_user.id)
@@ -402,37 +416,6 @@ async def process_remove_wallet(callback: CallbackQuery):
 
     await callback.answer()
 
-# Получение баланса для одного кошелька
-async def get_single_balance(message: Message, wallet_address: str):
-    if not Web3.is_address(wallet_address):
-        await message.answer("❌ Неправильный формат адреса кошелька.")
-        return
-
-    eth_price = get_eth_to_usdt()
-    results = []
-
-    for name, web3 in web3_clients.items():
-        if web3.is_connected():
-            try:
-                balance = get_balance(web3, wallet_address)
-                if balance > 0:
-                    if eth_price:
-                        usdt_balance = balance * eth_price
-                        results.append(f"▪️ <b>{name}</b>: {balance:.6f} ETH (${usdt_balance:.2f})")
-                    else:
-                        results.append(f"▪️ <b>{name}</b>: {balance:.6f} ETH")
-            except Exception as e:
-                logging.error(f"Error checking balance in {name}: {e}")
-
-    response = f"💰 <b>Баланс кошелька</b> <code>{wallet_address}</code>:\n\n"
-    if results:
-        response += "\n".join(results)
-    else:
-        response += "На этом кошельке не найдено средств."
-
-    await message.answer(response, parse_mode="HTML")
-
-# Обработчик сообщений с адресами кошельков
 @dp.message()
 async def process_message(message: Message):
     user_id = str(message.from_user.id)
