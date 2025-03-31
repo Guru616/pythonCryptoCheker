@@ -8,8 +8,8 @@ from aiogram.types import Message, InlineKeyboardButton, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from web3 import Web3
 
-from config import BOT_TOKEN, NETWORKS, ADMIN_TG_ID
-from Service.cryptoOperation import get_eth_to_usdt, get_balance, get_btc_to_usdt
+from config import BOT_TOKEN, NETWORKS, ADMIN_TG_ID, TOKENS, NATIVE_TOKENS
+from Service.cryptoOperation import get_eth_to_usdt, get_balance, get_btc_to_usdt, get_token_balance, get_token_price
 from Service.operationData import load_wallets, save_wallets
 from Users.usersCheker import update_user, load_users, get_user_wallets_count
 from Users.feedback import load_feedback, add_feedback
@@ -86,32 +86,70 @@ async def get_main_menu(user_id: str):
     menu_text += "\n\n💡 <i>Вы можете отправить отзыв/ошибку, ответом на это сообщение</i>"
 
     return menu_text, builder.as_markup()
+
+
 async def get_single_balance(message: Message, wallet_address: str):
     if not Web3.is_address(wallet_address):
         await message.answer("❌ Неправильный формат адреса кошелька.")
         return
 
-    eth_price = get_eth_to_usdt()
+    # Минимальные суммы для отображения (в USD)
+    MIN_NATIVE_BALANCE = 0.10  # $0.10 для нативных токенов
+    MIN_TOKEN_BALANCE = 0.10  # $0.10 для ERC20 токенов
+
+    loading_msg = await message.answer("🔄 Проверяю балансы...")
     results = []
 
     for name, web3 in web3_clients.items():
+        network_name = name.lower()
         if web3.is_connected():
             try:
-                balance = get_balance(web3, wallet_address)
-                if balance > 0:
-                    if eth_price:
-                        usdt_balance = balance * eth_price
-                        results.append(f"▪️ <b>{name}</b>: {balance:.6f} ETH (${usdt_balance:.2f})")
-                    else:
-                        results.append(f"▪️ <b>{name}</b>: {balance:.6f} ETH")
-            except Exception as e:
-                logging.error(f"Error checking balance in {name}: {e}")
+                network_results = []
+                native_symbol = NATIVE_TOKENS.get(network_name, 'ETH')
+                has_balances = False
 
-    response = f"💰 <b>Баланс кошелька</b> <code>{wallet_address}</code>:\n\n"
+                # 1. Проверяем нативный токен
+                native_balance = get_balance(web3, wallet_address)
+                native_price = await get_token_price(native_symbol)
+                native_usd = native_balance * native_price if native_price else 0
+
+                if native_usd >= MIN_NATIVE_BALANCE:
+                    network_results.append(
+                        f"▪️ <b>{native_symbol}</b>: {native_balance:.6f} (${native_usd:.2f})"
+                    )
+                    has_balances = True
+
+                # 2. Проверяем ERC20 токены
+                if network_name in TOKENS:
+                    for token_name, token_address in TOKENS[network_name].items():
+                        token_balance = await get_token_balance(web3, wallet_address, token_address)
+                        token_price = await get_token_price(token_name)
+                        token_usd = token_balance * token_price if token_price else 0
+
+                        if token_usd >= MIN_TOKEN_BALANCE:
+                            network_results.append(
+                                f"▪️ <b>{token_name}</b>: {token_balance:.3f} (${token_usd:.2f})"
+                            )
+                            has_balances = True
+
+                # 3. Добавляем результат только если есть значительные балансы
+                if has_balances:
+                    results.append(f"\n<b>🔹 {name.upper()}</b>:\n" + "\n".join(network_results))
+
+            except Exception as e:
+                logging.error(f"Error in {name}: {str(e)}")
+                # Не показываем сети с ошибками, если нет значительных балансов
+
+    # Формируем итоговый ответ
     if results:
-        response += "\n".join(results)
+        response = f"💰 <b>Балансы кошелька</b> <code>{wallet_address}</code>:\n" + "\n".join(results)
     else:
-        response += "На этом кошельке не найдено средств."
+        response = "🔍 На этом кошельке не найдено значительных балансов (мин. $0.10 для отображения)"
+
+    try:
+        await loading_msg.delete()
+    except:
+        pass
 
     await message.answer(response, parse_mode="HTML")
 

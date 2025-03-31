@@ -25,16 +25,26 @@ SCAN_APIS = {
     # Добавьте другие сети по аналогии
 }
 
-# Популярные токены (контракты могут меняться)
-COMMON_TOKENS = {
-    'Ethereum': {
-        'USDT': '0xdac17f958d2ee523a2206206994597c13d831ec7',
-        'USDC': '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
-        'DAI': '0x6b175474e89094c44da98b954eedeac495271d0f',
+TOKENS = {
+    'arbitrum': {
+        'USDT': '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9'.lower(),
+        'USDC': '0xaf88d065e77c8cC2239327C5EDb3A432268e5831'.lower(),
+        'DAI': '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1'.lower()
     },
-    'BSC': {
-        'BUSD': '0xe9e7cea3dedca5984780bafc599bd69add087d56',
-        'USDT': '0x55d398326f99059ff775485246999027b3197955',
+    'ethereum': {
+        'USDT': '0xdac17f958d2ee523a2206206994597c13d831ec7'.lower(),
+        'USDC': '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'.lower(),
+        'DAI': '0x6b175474e89094c44da98b954eedeac495271d0f'.lower()
     },
-    # Добавьте другие сети и токены по аналогии
+    # Добавьте другие сети по аналогии
+}
+# Добавим словарь с символами нативных токенов для каждой сети
+NATIVE_TOKENS = {
+    'ethereum': 'ETH',
+    'arbitrum': 'ETH',
+    'base': 'ETH',
+    'polygon': 'MATIC',
+    'bsc': 'BNB',
+    'optimism': 'ETH',
+    'abstract': 'ETH'  # Уточните правильный символ для Abstract
 }
